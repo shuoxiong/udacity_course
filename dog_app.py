@@ -56,7 +56,7 @@
 # 
 # In the code cell below, we save the file paths for both the human (LFW) dataset and dog dataset in the numpy arrays `human_files` and `dog_files`.
 
-# In[1]:
+# In[3]:
 
 
 import numpy as np
@@ -78,7 +78,7 @@ print('There are %d total dog images.' % len(dog_files))
 # 
 # OpenCV provides many pre-trained face detectors, stored as XML files on [github](https://github.com/opencv/opencv/tree/master/data/haarcascades).  We have downloaded one of these detectors and stored it in the `haarcascades` directory.  In the next code cell, we demonstrate how to use this detector to find human faces in a sample image.
 
-# In[2]:
+# In[4]:
 
 
 import cv2                
@@ -120,7 +120,7 @@ plt.show()
 # 
 # We can use this procedure to write a function that returns `True` if a human face is detected in an image and `False` otherwise.  This function, aptly named `face_detector`, takes a string-valued file path to an image as input and appears in the code block below.
 
-# In[3]:
+# In[5]:
 
 
 # returns "True" if face is detected in image stored at img_path
@@ -142,7 +142,7 @@ def face_detector(img_path):
 # __Answer:__ 
 # (You can print out your results and/or write your percentages in this cell)
 
-# In[4]:
+# In[6]:
 
 
 from tqdm import tqdm
@@ -189,7 +189,7 @@ print('Percentage of dog face detection', dog_face_count / len(dog_files_short))
 # 
 # The code cell below downloads the VGG-16 model, along with weights that have been trained on [ImageNet](http://www.image-net.org/), a very large, very popular dataset used for image classification and other vision tasks.  ImageNet contains over 10 million URLs, each linking to an image containing an object from one of [1000 categories](https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a).  
 
-# In[6]:
+# In[2]:
 
 
 import torch
@@ -315,7 +315,7 @@ print('Percentage of dog face detection', dog_face_count / len(dog_files_short))
 
 # We suggest VGG-16 as a potential network to detect dog images in your algorithm, but you are free to explore other pre-trained networks (such as [Inception-v3](http://pytorch.org/docs/master/torchvision/models.html#inception-v3), [ResNet-50](http://pytorch.org/docs/master/torchvision/models.html#id3), etc).  Please use the code cell below to test other pre-trained PyTorch models.  If you decide to pursue this _optional_ task, report performance on `human_files_short` and `dog_files_short`.
 
-# In[12]:
+# In[10]:
 
 
 ### (Optional) 
@@ -356,7 +356,7 @@ print('Percentage of dog face detection', dog_face_count / len(dog_files_short))
 # 
 # Use the code cell below to write three separate [data loaders](http://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader) for the training, validation, and test datasets of dog images (located at `dog_images/train`, `dog_images/valid`, and `dog_images/test`, respectively).  You may find [this documentation on custom datasets](http://pytorch.org/docs/stable/torchvision/datasets.html) to be a useful resource.  If you are interested in augmenting your training and/or validation data, check out the wide variety of [transforms](http://pytorch.org/docs/stable/torchvision/transforms.html?highlight=transform)!
 
-# In[16]:
+# In[46]:
 
 
 import os
@@ -374,19 +374,25 @@ loaders_scratch = {}
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
     
-data_transform = transforms.Compose([transforms.Scale(256),
+data_transform_training = transforms.Compose([transforms.Scale(256),
                                      transforms.CenterCrop(224),
                                      transforms.RandomHorizontalFlip(),
                                      transforms.ToTensor(),
                                      normalize])
 
-batch_size=50
+data_transform_val_test = transforms.Compose([transforms.Scale(256),
+                                     transforms.CenterCrop(224),
+                                     transforms.ToTensor(),
+                                     normalize])
+
+batch_size=32
     
-loaders_scratch['train'] = torch.utils.data.DataLoader(datasets.ImageFolder(train_path, data_transform), batch_size=batch_size)
+loaders_scratch['train'] = torch.utils.data.DataLoader(datasets.ImageFolder(train_path, data_transform_training),
+                                                       batch_size=batch_size, shuffle=True)
 
-loaders_scratch['valid'] = torch.utils.data.DataLoader(datasets.ImageFolder(valid_path, data_transform), batch_size=batch_size)
+loaders_scratch['valid'] = torch.utils.data.DataLoader(datasets.ImageFolder(valid_path, data_transform_val_test), batch_size=batch_size)
 
-loaders_scratch['test'] = torch.utils.data.DataLoader(datasets.ImageFolder(test_path, data_transform), batch_size=batch_size)
+loaders_scratch['test'] = torch.utils.data.DataLoader(datasets.ImageFolder(test_path, data_transform_val_test), batch_size=batch_size)
 
 
 
@@ -405,7 +411,7 @@ loaders_scratch['test'] = torch.utils.data.DataLoader(datasets.ImageFolder(test_
 
 # __Question 4:__ Outline the steps you took to get to your final CNN architecture and your reasoning at each step.  
 
-# In[11]:
+# In[48]:
 
 
 import torch.nn as nn
@@ -418,36 +424,72 @@ class Net(nn.Module):
         super(Net, self).__init__()
         ## Define layers of a CNN
         
-        self.conv1 = nn.Conv2d(3, 64, 3, padding=1)
-        self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
-        #self.conv3 = nn.Conv2d(128, 256, 3, padding=1)
+        self.conv1 = nn.Conv2d(3, 64, 7, 2, padding=3)
+        self.conv2 = nn.Conv2d(64, 64, 3, padding=1)
+        self.conv3 = nn.Conv2d(64, 128, 3, 2, padding=1)
+        self.conv4 = nn.Conv2d(128, 128, 3, padding=1)
+        self.conv5 = nn.Conv2d(128, 256, 3, 2, padding=1)
+        self.conv6 = nn.Conv2d(256, 256, 3, padding=1)
+        
+        self.conv7 = nn.Conv2d(256, 512, 3, padding=1)
 
         
-        self.pool = nn.MaxPool2d(4, 4)
-        self.fc1 = nn.Linear(128 * 14 * 14 , 4096)
-        self.fc2 = nn.Linear(4096 , 133)
+        self.pool_1 = nn.MaxPool2d(3, stride = 2, padding =1)
+        self.pool_2 = nn.MaxPool2d(2, 2)
+        
+        self.fc1 = nn.Linear(512 , 133)
+        
+        self.bn2_1 = nn.BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        
+        self.bn2_2 = nn.BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        
+        self.bn2_3 = nn.BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        
+        self.bn2_4 = nn.BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        
+        
         
         self.dropout = nn.Dropout(0.25)
         
+        self.avg = nn.AvgPool2d(7)
         
     def forward(self, x):
         ## Define forward behavior
-        x = self.pool(F.relu(self.conv1(x)))
-        #x = self.dropout(x)
-        x = self.pool(F.relu(self.conv2(x)))
-        #x = self.dropout(x)
-        #x = self.pool(F.relu(self.conv3(x)))
+        x = self.conv1(x)
         
-        x = self.dropout(x)
-        x = x.view(-1, 128 * 14 * 14)
+        x = self.pool_1(F.relu(self.bn2_1(self.conv2(x))))
+        
+        
+        x = self.conv3(x)
+        
+        x = self.pool_1(self.bn2_2(F.relu(self.conv4(x))))
+        
+        
+        x = self.conv5(x)
+        
+        x = self.bn2_3(F.relu(self.conv6(x)))
+
+    
+#         x = self.pool_1(F.relu(self.conv3(x)))
+        
+#         x = F.relu(self.bn2_2(self.conv4(x)))
+
+#         x = self.pool_1(F.relu(self.conv5(x)))
+         
+#         x = self.pool_1(self.bn2_3(F.relu(self.conv6(x))))
+        
+        x = self.avg(F.relu(self.bn2_4(self.conv7(x))))
+        
+        #x = self.dropout(x)
+        x = x.view(-1, 512 * 1 * 1)
         
         
   
-        x = F.relu(self.fc1(x))
+        #x = F.relu(self.fc1(x))
         
-        x = self.dropout(x)
+        #x = self.dropout(x)
     
-        x = self.fc2(x)
+        x = self.fc1(x)
         
         return x
 
@@ -455,6 +497,7 @@ class Net(nn.Module):
 
 # instantiate the CNN
 model_scratch = Net()
+
 
 # move tensors to GPU if CUDA is available
 
@@ -464,13 +507,48 @@ if use_cuda:
     model_scratch.cuda()
 
 
+# In[24]:
+
+
+model_scratch = models.resnet18()
+print(model_scratch)
+n_inputs = model_scratch.fc.in_features
+
+last_layer = nn.Linear(n_inputs, 133)
+model_scratch.fc = last_layer
+
+
+if use_cuda:
+    model_scratch = model_scratch.cuda()
+
+
+# In[20]:
+
+
+
+
+model_scratch = models.vgg16()
+
+
+n_inputs = model_scratch.classifier[6].in_features
+
+print(n_inputs)
+
+last_layer = nn.Linear(n_inputs, 133)
+model_scratch.classifier[6] = last_layer
+
+
+if use_cuda:
+    model_scratch = model_scratch.cuda()
+
+
 # __Answer:__ 
 
 # ### (IMPLEMENTATION) Specify Loss Function and Optimizer
 # 
 # Use the next code cell to specify a [loss function](http://pytorch.org/docs/stable/nn.html#loss-functions) and [optimizer](http://pytorch.org/docs/stable/optim.html).  Save the chosen loss function as `criterion_scratch`, and the optimizer as `optimizer_scratch` below.
 
-# In[14]:
+# In[30]:
 
 
 import torch.optim as optim
@@ -479,19 +557,28 @@ import torch.optim as optim
 criterion_scratch = nn.CrossEntropyLoss()
 
 ### TODO: select optimizer
-optimizer_scratch = optim.Adam(model_scratch.parameters(), lr=0.001)
+optimizer_scratch = optim.Adam(model_scratch.parameters(), lr=0.01)
+
+
+# In[31]:
+
+
+from matplotlib import pyplot as plt
 
 
 # ### (IMPLEMENTATION) Train and Validate the Model
 # 
 # Train and validate your model in the code cell below.  [Save the final model parameters](http://pytorch.org/docs/master/notes/serialization.html) at filepath `'model_scratch.pt'`.
 
-# In[20]:
+# In[49]:
 
 
 
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+train_losses = []
+valid_losses = []
 
 def train(n_epochs, loaders, model, optimizer, criterion, use_cuda, save_path):
     """returns trained model"""
@@ -520,7 +607,9 @@ def train(n_epochs, loaders, model, optimizer, criterion, use_cuda, save_path):
             loss.backward()
             optimizer.step()
             train_loss = train_loss + loss.data
-        train_loss = train_loss / batch_size
+            
+        train_loss = train_loss / (batch_idx + 1)
+        train_losses.append(train_loss)
             
         ######################    
         # validate the model #
@@ -535,8 +624,8 @@ def train(n_epochs, loaders, model, optimizer, criterion, use_cuda, save_path):
             loss = criterion(output, target)
                                        
             valid_loss = valid_loss + loss.data
-        valid_loss = valid_loss / batch_size
-                                
+        valid_loss = valid_loss / (batch_idx + 1 )  
+        valid_losses.append(valid_loss)
         # print training/validation statistics 
         print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format(
             epoch, 
@@ -553,6 +642,10 @@ def train(n_epochs, loaders, model, optimizer, criterion, use_cuda, save_path):
             torch.save(model.state_dict(), save_path)
             valid_loss_min = valid_loss
             
+        plt.plot(train_losses)
+        plt.plot(valid_losses)
+        plt.show()
+            
     # return trained model
     return model
 
@@ -567,7 +660,13 @@ model_scratch = train(100, loaders_scratch, model_scratch, optimizer_scratch,
 model_scratch.load_state_dict(torch.load('model_scratch.pt'))
 
 
-# In[21]:
+# In[17]:
+
+
+torch.__version__
+
+
+# In[50]:
 
 
 #load the model that got the best validation accuracy
@@ -578,7 +677,7 @@ model_scratch.load_state_dict(torch.load('model_scratch.pt'))
 # 
 # Try out your model on the test dataset of dog images.  Use the code cell below to calculate and print the test loss and accuracy.  Ensure that your test accuracy is greater than 10%.
 
-# In[ ]:
+# In[51]:
 
 
 def test(loaders, model, criterion, use_cuda):
@@ -673,6 +772,10 @@ loaders_transfer['test'] = torch.utils.data.DataLoader(datasets.ImageFolder(test
 import torchvision.models as models
 import torch.nn as nn
 
+
+#models.resnet18, models.resnet51
+
+
 ## TODO: Specify model architecture 
 
 model_transfer = models.vgg16(pretrained=True)
@@ -690,6 +793,17 @@ model_transfer.classifier[6] = last_layer
 
 if use_cuda:
     model_transfer = model_transfer.cuda()
+
+
+# In[ ]:
+
+
+(conv -> conv -> relu -> batch_norm -> pool)+
+
+or 
+
+
+(conv -> conv -> relu -> pool) +
 
 
 # __Question 5:__ Outline the steps you took to get to your final CNN architecture and your reasoning at each step.  Describe why you think the architecture is suitable for the current problem.
